@@ -2,6 +2,8 @@ frames/
 models/
 data/
 deep-license-plate-recognition/
+logs/
+ckpt/
 
 .vscode/
 .ipynb_checkpoints/

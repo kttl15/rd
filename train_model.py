@@ -1,9 +1,10 @@
-import numpy as np
 import os
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+import time
 import tensorflow as tf
 
 from tensorflow.keras.preprocessing import image_dataset_from_directory
-from tensorflow.keras.utils import plot_model
 from tensorflow.keras.callbacks import ReduceLROnPlateau, TensorBoard, ModelCheckpoint
 
 
@@ -11,7 +12,7 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, TensorBoard, ModelChec
 device = tf.config.list_physical_devices("GPU")[0]
 tf.config.experimental.set_memory_growth(device, True)
 
-tf.get_logger().setLevel("INFO")
+tf.get_logger().setLevel("ERROR")
 
 
 class Model:
@@ -28,6 +29,10 @@ class Model:
             ]
         )
 
+    def __is_model_set__(self):
+        if not self.base_model_name:
+            raise NameError("base model not set. Please load a base model first")
+
     def load_model(self, base_model_name: str):
         """[summary]
         
@@ -41,7 +46,7 @@ class Model:
         """
         if base_model_name not in ["efficientnet", "resnet50", "vgg16"]:
             raise ValueError(
-                "base model name not one of ['efficientnet', 'resnet50', 'vgg16']"
+                f"{base_model_name} not one of ['efficientnet', 'resnet50', 'vgg16']"
             )
 
         self.base_model_name = base_model_name
@@ -64,11 +69,7 @@ class Model:
 
         self.base_model.trainable = False
 
-    def __is_model_set__(self):
-        if not self.base_model_name:
-            raise NameError("base model not set. Please load a base model first")
-
-    def build_model(self, train_data, output_layers):
+    def build_model(self, train_data):
         self.__is_model_set__()
         self.img_batch, _ = next(iter(train_data))
         self.feature_batch = self.base_model(self.img_batch)
@@ -78,7 +79,10 @@ class Model:
         x = self.base_model(x, training=False)
         x = tf.keras.layers.GlobalAveragePooling2D()(x)
         x = tf.keras.layers.Dropout(0.2)(x)
-        outputs = output_layers(x)
+        x = tf.keras.layers.Dense(1024, activation="relu")(x)
+        x = tf.keras.layers.Dropout(0.2)(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        outputs = tf.keras.layers.Dense(189, activation="softmax")(x)
         model = tf.keras.Model(inputs, outputs)
         return model
 
@@ -114,26 +118,32 @@ val = val.prefetch(buffer_size=AUTOTUNE)
 test = test.prefetch(buffer_size=AUTOTUNE)
 
 # * init model
+model_name = "efficientnet"
 model = Model()
-model.load_model("vgg16")
-
-# * add output layer
-output_layers = tf.keras.layers.Dense(189)
-model = model.build_model(train, output_layers)
-base_learning_rate = 0.001
+model.load_model(model_name)
+model = model.build_model(train)
+base_learning_rate = 1e-3
 model.compile(
     optimizer=tf.keras.optimizers.Adam(lr=base_learning_rate),
     loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
     metrics=["accuracy"],
 )
 
+model.summary()
+
 # * callbacks
 tb = TensorBoard(log_dir="logs", update_freq="epoch", write_graph=True)
 
-red_lr = ReduceLROnPlateau()
+red_lr = ReduceLROnPlateau(
+    monitor="val_loss", factor=0.1, patience=5, verbose=1, min_lr=1e-5
+)
 
+if "ckpt" not in os.listdir():
+    os.mkdir("ckpt")
+
+curr_time = time.time()
 ckpt = ModelCheckpoint(
-    filepath="ckpt/weights.{epoch:02d}-{val_loss:.2f}-{val_accuracy:.2f}.hdf5",
+    filepath=f"ckpt/weights_{model_name}_{curr_time}.hdf5",
     save_weights_only=False,
     monitor="val_accuracy",
     save_best_only=True,
