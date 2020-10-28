@@ -7,3 +7,6 @@ ckpt/
 
 .vscode/
 .ipynb_checkpoints/
+plate_API.json
+pred.db
+res.json
