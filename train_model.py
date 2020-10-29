@@ -16,11 +16,9 @@ tf.get_logger().setLevel("ERROR")
 
 
 class Model:
-    def __init__(self):
+    def __init__(self, img_shape):
         self.base_model_name = None
-        self.BATCH_SIZE = 32
-        self.IMG_SIZE = (160, 160)
-        self.IMG_SHAPE = IMG_SIZE + (3,)
+        self.IMG_SHAPE = img_shape
 
         self.data_augmentation = tf.keras.Sequential(
             [
@@ -30,13 +28,16 @@ class Model:
         )
 
     def __is_model_set__(self):
+        """Check if model has been specified.
+
+        Raises:
+            NameError: base model has not been set prior to building the model.
+        """
         if not self.base_model_name:
             raise NameError("base model not set. Please load a base model first")
 
     def load_model(self, base_model_name: str):
-        """[summary]
-        
-        Load/download a model.
+        """Load/download a model.
 
         Args:
             base_model_name (str): ['efficientnet', 'resnet50', 'vgg16']
@@ -70,9 +71,14 @@ class Model:
         self.base_model.trainable = False
 
     def build_model(self, train_data):
+        """Returns a tf.keras.Model model.
+
+        Returns:
+            tf.keras.Model
+        """
         self.__is_model_set__()
-        self.img_batch, _ = next(iter(train_data))
-        self.feature_batch = self.base_model(self.img_batch)
+        # img_batch, _ = next(iter(train_data))
+        # self.feature_batch = self.base_model(img_batch)
         inputs = tf.keras.layers.Input(shape=self.IMG_SHAPE)
         x = self.data_augmentation(inputs)
         x = self.preprocessor(x)
@@ -82,7 +88,7 @@ class Model:
         x = tf.keras.layers.Dense(1024, activation="relu")(x)
         x = tf.keras.layers.Dropout(0.2)(x)
         x = tf.keras.layers.BatchNormalization()(x)
-        outputs = tf.keras.layers.Dense(189, activation="softmax")(x)
+        outputs = tf.keras.layers.Dense(189)(x)
         model = tf.keras.Model(inputs, outputs)
         return model
 
@@ -93,7 +99,7 @@ train_dir = os.path.join(PATH, "train")
 validation_dir = os.path.join(PATH, "test")
 
 BATCH_SIZE = 32
-IMG_SIZE = (160, 160)
+IMG_SIZE = (224, 224)
 
 train = image_dataset_from_directory(
     train_dir, shuffle=True, batch_size=BATCH_SIZE, image_size=IMG_SIZE
@@ -103,14 +109,6 @@ val = image_dataset_from_directory(
     validation_dir, shuffle=True, batch_size=BATCH_SIZE, image_size=IMG_SIZE
 )
 
-# * create a test dataset from validation dataset
-val_batches = tf.data.experimental.cardinality(val)
-test = val.take(val_batches // 5)
-val = val.skip(val_batches // 5)
-print("Number of validation batches: %d" % tf.data.experimental.cardinality(val))
-print("Number of test batches: %d" % tf.data.experimental.cardinality(test))
-
-
 # * enables prefetching. Prepares next training batch while model is training on current batch.
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 train = train.prefetch(buffer_size=AUTOTUNE)
@@ -119,7 +117,7 @@ test = test.prefetch(buffer_size=AUTOTUNE)
 
 # * init model
 model_name = "efficientnet"
-model = Model()
+model = Model(img_shape=IMG_SIZE + (3,))
 model.load_model(model_name)
 model = model.build_model(train)
 base_learning_rate = 1e-3
@@ -143,7 +141,7 @@ if "ckpt" not in os.listdir():
 
 curr_time = time.time()
 ckpt = ModelCheckpoint(
-    filepath=f"ckpt/weights_{model_name}_{curr_time}.hdf5",
+    filepath=f"ckpt/weights_{model_name}_{curr_time}.h5",
     save_weights_only=False,
     monitor="val_accuracy",
     save_best_only=True,
@@ -151,6 +149,6 @@ ckpt = ModelCheckpoint(
 
 # * model training
 history = model.fit(
-    train, epochs=200, validation_data=test, verbose=1, callbacks=[tb, red_lr, ckpt],
+    train, epochs=200, validation_data=val, verbose=1, callbacks=[tb, red_lr, ckpt],
 )
 
