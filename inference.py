@@ -18,6 +18,7 @@ class Model:
         """Loads a "weights + model" model and prints the model summary
 
         Args:
+        
             weights_path (str): path to weights
         """
         self.model = tf.keras.models.load_model(weights_path)
@@ -27,9 +28,11 @@ class Model:
         """Returns a prediction of the image batch.
 
         Args:
+        
             img_batch: Image batch.
 
         Returns:
+        
             predictions (np.array()): a numpy array of predictions.
         """
         predictions = self.model.predict_on_batch(img_batch).flatten()

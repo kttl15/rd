@@ -57,29 +57,43 @@ def retrive_pred():
 
 
 class Recognizer:
-    def __init__(self, db, args):
+    def __init__(self, db: str, args):
         self.args = args
         self.connection = sqlite3.connect(db)
         self.c = self.connection.cursor()
         self.ids = self.c.execute("SELECT id FROM plate")
+        self.ids = self.ids.fetchall()
         self.ids = [i[0] for i in self.ids]
 
     def make_pred(self):
+        """iterates through each image
+        """
         if os.path.isdir(self.args.img):
             path = os.path.join(os.getcwd(), self.args.img, "frames")
             imgs = sorted(os.listdir(path))
             for img in imgs:
                 if not img in self.ids:
                     print(f"Recognizing {img}.")
-                    self.save_pred_sqlite3(
-                        img, self.get_plate_pred(os.path.join(os.getcwd(), path, img))
+                    self.__save_pred_sqlite3__(
+                        img,
+                        self.__get_plate_pred__(os.path.join(os.getcwd(), path, img)),
                     )
                 else:
                     print(f"{img} exists. Skipping.")
         self.connection.commit()
         self.connection.close()
 
-    def get_plate_pred(self, img):
+    def __get_plate_pred__(self, img: str) -> dict:
+        """Does an API call to plate recognizer
+
+        Args:
+        
+            img (str): path to image
+
+        Returns:
+        
+            (dict): a json object output from plate recognizer
+        """
         regions = ["nz"]
         API_TOKEN = json.load(open(self.args.api, "r"))["API"]
 
@@ -92,7 +106,15 @@ class Recognizer:
             )
         return response.json()
 
-    def save_pred_sqlite3(self, img_name, pred):
+    def __save_pred_sqlite3__(self, img_name: str, pred: dict) -> None:
+        """saves the predictions to a sqlite database
+
+        Args:
+        
+            img_name (str): image name
+            
+            pred (dict): json object
+        """
         if pred:
             self.c.execute(
                 "INSERT INTO plate VALUES (?, ?, ?, ?)",
@@ -108,3 +130,6 @@ if __name__ == "__main__":
         recognizer.make_pred()
     elif args.mode == "r":
         retrive_pred()
+
+
+# python plate_recognizer.py -m i -i frames/ -api plate_API.json

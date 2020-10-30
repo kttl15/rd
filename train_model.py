@@ -31,6 +31,7 @@ class Model:
         """Check if model has been specified.
 
         Raises:
+        
             NameError: base model has not been set prior to building the model.
         """
         if not self.base_model_name:
@@ -40,9 +41,11 @@ class Model:
         """Load/download a model.
 
         Args:
+        
             base_model_name (str): ['efficientnet', 'resnet50', 'vgg16']
 
         Raises:
+        
             ValueError: error if base model name not in list
         """
         if base_model_name not in ["efficientnet", "resnet50", "vgg16"]:
@@ -74,6 +77,7 @@ class Model:
         """Returns a tf.keras.Model model.
 
         Returns:
+        
             tf.keras.Model
         """
         self.__is_model_set__()
